@@ -143,17 +143,24 @@ plt.figure(figsize=(8, 5))
 no_outliers[outliers_cols].boxplot()
 plt.show()
 
-titanic = no_outliers
 
-# ---------------------------------------------------------------------
-# 6. Filtrado y agregaciones
-# ---------------------------------------------------------------------
-dupes = titanic.duplicated().sum()
-print("\nDuplicados:", dupes)
-titanic = titanic.drop_duplicates()
+# =============================================================================
+# 5. FILTRADO Y AGREGACIONES
+# =============================================================================
+print("\n=== 5) Filtrado, duplicados y agregaciones ===")
 
-df_male = titanic[titanic["Sex"] == "male"].copy()
-df_female = titanic[titanic["Sex"] == "female"].copy()
+df = no_outliers.copy()
+
+# 5.1 Comprobar duplicados
+num_duplicados = df.duplicated().sum()
+print(f"\nNúmero de registros duplicados en el dataset: {num_duplicados}")
+
+# En este dataset concreto, no hay duplicados. Si los hubiera, podríamos eliminarlos así:
+# df = df.drop_duplicates()
+
+# 5.2 Subconjuntos por sexo
+df_male = df[df["Sex"] == "male"].copy()
+df_female = df[df["Sex"] == "female"].copy()
 
 # Estadísticas de edad
 age_stats_male = df_male.groupby("Pclass")["Age"].agg(["mean", "min", "max"]).reset_index()
