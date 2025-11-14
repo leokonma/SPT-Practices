@@ -1,0 +1,4 @@
+Ship_ID,Nombre_Barco,Fecha_Salida,Tripulantes,Clima,TemperaturaMedia
+1,TITANIC,1912-04-10,892,Despejado,2.0
+2,OLYMPIC,1911-06-14,860,Nublado,10.0
+3,BRITANNIC,1915-12-23,950,Lluvioso,8.0
