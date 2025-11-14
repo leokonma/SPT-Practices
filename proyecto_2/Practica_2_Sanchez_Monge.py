@@ -288,8 +288,11 @@ df = titanic_no_out.copy()
 num_duplicados = df.duplicated().sum()
 print(f"\nNúmero de registros duplicados en el dataset: {num_duplicados}")
 
-# En este dataset concreto, no hay duplicados. Si los hubiera, podríamos eliminarlos así:
-# df = df.drop_duplicates()
+# Eliminar registros duplicados para mantener solo una instancia de cada uno
+if num_duplicados > 0:
+    print(f"Eliminando {num_duplicados} registros duplicados...")
+    df = df.drop_duplicates()
+    print(f"Dimensiones tras eliminar duplicados: {df.shape}")
 
 # 5.2 Subconjuntos por sexo
 df_male = df[df["Sex"] == "male"].copy()
