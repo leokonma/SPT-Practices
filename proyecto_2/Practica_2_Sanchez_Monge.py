@@ -33,6 +33,46 @@ from sklearn.impute import IterativeImputer
 # --- Opcional: fijar estilo de gráficos
 sns.set(style="whitegrid")
 
+# --- Sistema de seguimiento de registros en el pipeline ETL
+record_tracker = {
+    "step": [],
+    "description": [],
+    "num_records": [],
+    "num_columns": [],
+    "records_lost": [],
+    "pct_remaining": []
+}
+
+
+def track_records(step, description, df, initial_count=None):
+    """
+    Registra el número de registros en cada etapa del pipeline ETL.
+    
+    Args:
+        step: Número de paso (ej: "0", "1a", "2")
+        description: Descripción breve de la transformación
+        df: DataFrame actual
+        initial_count: Conteo inicial de registros (para calcular pérdida)
+    """
+    num_records = len(df)
+    num_columns = len(df.columns)
+    
+    if initial_count is None:
+        if len(record_tracker["num_records"]) > 0:
+            initial_count = record_tracker["num_records"][0]
+        else:
+            initial_count = num_records
+    
+    records_lost = initial_count - num_records
+    pct_remaining = (num_records / initial_count * 100) if initial_count > 0 else 100
+    
+    record_tracker["step"].append(step)
+    record_tracker["description"].append(description)
+    record_tracker["num_records"].append(num_records)
+    record_tracker["num_columns"].append(num_columns)
+    record_tracker["records_lost"].append(records_lost)
+    record_tracker["pct_remaining"].append(pct_remaining)
+
 
 # --- Carga de datos (prueba dos nombres de archivo por seguridad)
 def load_titanic_data():
@@ -64,6 +104,9 @@ meteo_raw = load_meteo_data()
 print("\n--- Vista inicial del Titanic ---")
 print(titanic_raw.head())
 print("\nDimensiones Titanic:", titanic_raw.shape)
+
+# Registrar estado inicial
+track_records("0", "Datos cargados (raw)", titanic_raw)
 
 
 # =============================================================================
@@ -127,6 +170,9 @@ titanic_reduced = titanic.drop(columns=cols_to_drop_for_missing + cols_to_drop_f
 print("\nColumnas tras eliminar Cabin y variables poco relevantes:")
 print(list(titanic_reduced.columns))
 
+# Registrar reducción de columnas
+track_records("2a", "Después de eliminar columnas poco relevantes", titanic_reduced)
+
 # --- 2.1 Imputación basada en estadísticos (media/mediana/moda) ---
 
 # Separamos numéricas y categóricas
@@ -150,6 +196,9 @@ print("\n¿Quedan NaN tras la imputación simple?",
 
 print("\nResumen numérico tras imputación simple:")
 print(titanic_simple[num_cols].describe())
+
+# Registrar después de imputación simple
+track_records("2b", "Después de imputación simple (mediana/moda)", titanic_simple)
 
 
 # --- 2.2 Imputación iterativa (MICE / IterativeImputer) ---
@@ -224,6 +273,9 @@ titanic_clean["Embarked"] = correct_categorical_typos(
 print("\nValores únicos de Embarked tras corrección:")
 print(titanic_clean["Embarked"].value_counts())
 
+# Registrar después de correcciones ortográficas
+track_records("3", "Después de correcciones ortográficas", titanic_clean)
+
 
 # =============================================================================
 # 4. VALORES EXTREMOS (OUTLIERS)
@@ -276,6 +328,9 @@ plt.title("Boxplots tras tratamiento de outliers")
 plt.tight_layout()
 plt.show()
 
+# Registrar después de tratamiento de outliers
+track_records("4", "Después de tratamiento de outliers (winsorización)", titanic_no_out)
+
 
 # =============================================================================
 # 5. FILTRADO Y AGREGACIONES
@@ -288,8 +343,16 @@ df = titanic_no_out.copy()
 num_duplicados = df.duplicated().sum()
 print(f"\nNúmero de registros duplicados en el dataset: {num_duplicados}")
 
-# En este dataset concreto, no hay duplicados. Si los hubiera, podríamos eliminarlos así:
-# df = df.drop_duplicates()
+# Si hay duplicados, eliminarlos y registrar
+if num_duplicados > 0:
+    print(f"⚠️  Se encontraron {num_duplicados} registros duplicados. Eliminando...")
+    df_before_dedup = df.copy()
+    df = df.drop_duplicates()
+    print(f"✅ Registros después de eliminar duplicados: {len(df)}")
+    track_records("5a", "Después de eliminar duplicados", df)
+else:
+    print("✅ No se encontraron registros duplicados en el dataset.")
+    track_records("5a", "Verificación de duplicados (ninguno encontrado)", df)
 
 # 5.2 Subconjuntos por sexo
 df_male = df[df["Sex"] == "male"].copy()
@@ -367,6 +430,9 @@ print(agegroup_surv.sort_values(["AgeGroup", "Pclass"]))
 # Este análisis aporta información sobre qué grupos de edad y clase
 # concentran mayor supervivencia (por ejemplo, niños en 1ª clase).
 
+# Registrar después de crear variable AgeGroup
+track_records("5b", "Después de agregar AgeGroup y análisis", df)
+
 
 # =============================================================================
 # 6. UNIONES CON CONDICIONES METEOROLÓGICAS
@@ -404,6 +470,9 @@ print(df_merged[["Barco", "Clima", "TemperaturaMedia"]].head())
 # No aportarán poder predictivo adicional para un modelo de supervivencia,
 # pero sí contextualizan el entorno del viaje.
 
+# Registrar después de merge con datos meteorológicos
+track_records("6", "Después de unión con datos meteorológicos", df_merged)
+
 
 # =============================================================================
 # 7. EXPORTACIÓN FINAL Y REFLEXIÓN
@@ -424,6 +493,36 @@ output_name = "Titanic_2_clean.csv"
 df_final.to_csv(output_name, index=False, encoding="utf-8")
 print(f"\n✅ Archivo final guardado como: {output_name}")
 print("Dimensiones de la base final:", df_final.shape)
+
+# Registrar dataset final
+track_records("7", "Dataset final exportado", df_final)
+
+# =============================================================================
+# RESUMEN DEL SEGUIMIENTO DE REGISTROS
+# =============================================================================
+print("\n" + "="*80)
+print("RESUMEN DEL PIPELINE ETL - SEGUIMIENTO DE REGISTROS")
+print("="*80)
+
+# Crear DataFrame con el resumen del tracking
+tracking_df = pd.DataFrame(record_tracker)
+print("\n", tracking_df.to_string(index=False))
+
+print("\n" + "-"*80)
+print("ESTADÍSTICAS FINALES:")
+print("-"*80)
+initial_records = tracking_df.iloc[0]["num_records"]
+final_records = tracking_df.iloc[-1]["num_records"]
+total_lost = initial_records - final_records
+pct_retained = (final_records / initial_records) * 100
+
+print(f"Registros iniciales:           {initial_records}")
+print(f"Registros finales:             {final_records}")
+print(f"Registros perdidos (netos):    {total_lost}")
+print(f"Porcentaje retenido:           {pct_retained:.2f}%")
+print(f"Columnas iniciales:            {tracking_df.iloc[0]['num_columns']}")
+print(f"Columnas finales:              {tracking_df.iloc[-1]['num_columns']}")
+print("="*80)
 
 
 """
